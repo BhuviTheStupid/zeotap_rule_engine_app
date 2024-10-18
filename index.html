@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/styles.css">
+    <title>Rule Engine</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Rule Engine</h1>
+        
+        <div class="rule-list">
+            <h2>Available Rules</h2>
+            <ul id="rules">
+                <!-- Always render all rules -->
+                {% if rules %}
+                    {% for rule in rules %}
+                        <li>
+                            <input type="checkbox" class="rule-checkbox" value="{{ rule.id }}"> {{ rule.rule_string }}
+                        </li>
+                    {% endfor %}
+                {% else %}
+                    <li>No rules available</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <div class="combine-rules">
+            <h2>Combine Rules</h2>
+            <label for="operator">Select Operator:</label>
+            <select id="operator">
+                <option value="AND">AND</option>
+                <option value="OR">OR</option>
+            </select>
+            <button id="combine-rule-btn">Combine Selected Rules</button>
+            <div id="combine-result"></div>
+        </div>
+
+        <div class="create-rule">
+            <h2>Create New Rule</h2>
+            <input type="text" id="new-rule" placeholder="Enter new rule (e.g. age > 30 AND department = 'Sales')">
+            <button id="create-rule-btn">Add Rule</button>
+            <div id="create-rule-result"></div>
+        </div>
+
+        <div class="user-data">
+            <h2>User Data JSON</h2>
+            <textarea id="user-data-json" rows="5" cols="50" placeholder='{"age": 30, "department": "Sales", "salary": 60000, "experience": 5}'></textarea>
+        </div>
+
+        <button id="evaluate-btn">Evaluate Rules</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Combine selected rules
+        document.getElementById('combine-rule-btn').addEventListener('click', async () => {
+            const selectedRules = Array.from(document.querySelectorAll('.rule-checkbox:checked')).map(checkbox => checkbox.value);
+            const operator = document.getElementById('operator').value;
+
+            if (selectedRules.length === 0) {
+                document.getElementById('combine-result').innerText = 'Please select at least one rule to combine.';
+                return;
+            }
+
+            const response = await fetch('/combine_rules', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rule_ids: selectedRules, operator: operator }),
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                document.getElementById('combine-result').innerText = 'Combined Rule: ' + result.combined_rule;
+            } else {
+                document.getElementById('combine-result').innerText = 'Error combining rules.';
+            }
+        });
+
+        // Create new rule
+        document.getElementById('create-rule-btn').addEventListener('click', async () => {
+            const rule = document.getElementById('new-rule').value;
+            const response = await fetch('/add_rule', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rule }),
+            });
+
+            const result = await response.json();
+            document.getElementById('create-rule-result').innerText = result.message;
+
+            // Clear the input field
+            document.getElementById('new-rule').value = '';
+            
+            // Optionally, refresh the list of rules
+            window.location.reload();
+        });
+
+        // Evaluate rules
+        document.getElementById('evaluate-btn').addEventListener('click', async () => {
+            const selectedRules = Array.from(document.querySelectorAll('.rule-checkbox:checked')).map(checkbox => checkbox.nextSibling.textContent.trim());
+            const userDataJson = document.getElementById('user-data-json').value;
+
+            let user_data;
+            try {
+                user_data = JSON.parse(userDataJson); // Parse the user data JSON
+            } catch (e) {
+                document.getElementById('result').innerText = 'Invalid JSON format. Please correct it.';
+                return;
+            }
+
+            const combinedRuleString = selectedRules.join(' AND '); // Combine the selected rules
+
+            const response = await fetch('/evaluate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rule_string: combinedRuleString, user_data }),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                document.getElementById('result').innerText = 'Evaluation Result: ' + result.result;
+            } else {
+                document.getElementById('result').innerText = 'Error: ' + (result.error || 'Unknown error occurred');
+                console.error('Error details:', result);
+            }
+        });
+    </script>
+</body>
+</html>
